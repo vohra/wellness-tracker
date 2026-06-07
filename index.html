@@ -453,6 +453,37 @@ function App() {
               ))
             }
           </div>
+
+          <div style={S.card}>
+            <div style={S.label}>Import Historic Data</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:10}}>Paste your data JSON below and tap Import 👇</div>
+            <textarea
+              id="importBox"
+              rows={6}
+              placeholder='Paste JSON data here...'
+              style={{...S.input,resize:"vertical",fontSize:12,marginBottom:8}}
+            />
+            <div style={{display:"flex",gap:8}}>
+              <button style={{...S.btn("green"),flex:1}} onClick={()=>{
+                try {
+                  const raw = document.getElementById("importBox").value.trim();
+                  const parsed = JSON.parse(raw);
+                  setLogs(parsed);
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                  document.getElementById("importBox").value="";
+                  alert("✅ Data imported! Tap ☁️ Save to sync to Sheets.");
+                } catch(e) {
+                  alert("❌ Invalid data. Make sure you copied the full JSON.");
+                }
+              }}>Import Data</button>
+              <button style={{...S.btn("red"),flex:1}} onClick={()=>{
+                if(confirm("Clear ALL data? This cannot be undone.")) {
+                  setLogs({});
+                  localStorage.removeItem(STORAGE_KEY);
+                }
+              }}>Clear All</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
