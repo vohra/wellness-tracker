@@ -47,24 +47,52 @@ const defaultDay = (date) => ({
   workoutType:"", hadFruit:false, foods:[], notes:"",
 });
 
+async function sheetsSet(key, value) {
+  try {
+    // Split into chunks of 1500 chars to stay under URL limits
+    const chunkSize = 1500;
+    if (value.length <= chunkSize) {
+      const res = await fetch(`${SHEETS_URL}?action=set&key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`);
+      const data = await res.json();
+      return data.success === true;
+    }
+    // For large payloads, save in numbered chunks
+    const chunks = [];
+    for (let i = 0; i < value.length; i += chunkSize) {
+      chunks.push(value.slice(i, i + chunkSize));
+    }
+    // Save total count first
+    await fetch(`${SHEETS_URL}?action=set&key=${encodeURIComponent(key + "__chunks")}&value=${encodeURIComponent(chunks.length)}`);
+    // Save each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const res = await fetch(`${SHEETS_URL}?action=set&key=${encodeURIComponent(key + "__chunk__" + i)}&value=${encodeURIComponent(chunks[i])}`);
+      await res.json();
+    }
+    return true;
+  } catch { return false; }
+}
+
 async function sheetsGet(key) {
   try {
+    // Check if data was saved in chunks
+    const countRes = await fetch(`${SHEETS_URL}?action=get&key=${encodeURIComponent(key + "__chunks")}`);
+    const countData = await countRes.json();
+    if (countData.success) {
+      const totalChunks = parseInt(countData.value);
+      let combined = "";
+      for (let i = 0; i < totalChunks; i++) {
+        const res = await fetch(`${SHEETS_URL}?action=get&key=${encodeURIComponent(key + "__chunk__" + i)}`);
+        const data = await res.json();
+        if (data.success) combined += data.value;
+      }
+      return combined;
+    }
+    // Try single value
     const res = await fetch(`${SHEETS_URL}?action=get&key=${encodeURIComponent(key)}`);
     const data = await res.json();
     if (data.success) return data.value;
     return null;
   } catch { return null; }
-}
-async function sheetsSet(key, value) {
-  try {
-    const res = await fetch(`${SHEETS_URL}?action=set&key=${encodeURIComponent(key)}`, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: value,
-    });
-    const data = await res.json();
-    return data.success === true;
-  } catch { return false; }
 }
 
 function App() {
