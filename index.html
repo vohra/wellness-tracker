@@ -259,7 +259,7 @@ function App() {
       </div>
 
       <div style={S.nav}>
-        {[["today","📊 Overview"],["food","🍽 Food"],["water","💧 Water"],["supplements","💊 Supps"],["progress","📈 Progress"]].map(([v,l])=>(
+        {[["today","📊 Overview"],["food","🍽 Food"],["water","💧 Water"],["supplements","💊 Supps"],["progress","🏆 Dashboard"]].map(([v,l])=>(
           <button key={v} style={S.navBtn(view===v)} onClick={()=>setView(v)}>{l}</button>
         ))}
       </div>
@@ -431,48 +431,166 @@ function App() {
         </div>
       )}
 
-      {view==="progress" && (
+      {view==="progress" && (()=>{
+        const totalDays = allDates.length;
+        const weekNum = weekNumber(todayStr());
+        const pctToGoal = Math.min(100, Math.round((lost/5)*100));
+
+        // Streaks
+        const sortedDates = [...allDates].sort();
+        let stepStreak=0, suppStreak=0, curStepStreak=0, curSuppStreak=0;
+        for(let i=sortedDates.length-1;i>=0;i--){
+          const d=sortedDates[i];
+          if((logs[d]?.steps||0)>=STEPS_TARGET){curStepStreak++;stepStreak=Math.max(stepStreak,curStepStreak);}else{if(i===sortedDates.length-1)curStepStreak=0;else break;}
+          if(logs[d]?.prenatal&&logs[d]?.magnesium){curSuppStreak++;suppStreak=Math.max(suppStreak,curSuppStreak);}
+        }
+
+        // Weekly scores
+        const weekScores = Array.from({length:8},(_,i)=>i+1).map(w=>{
+          const wkDays=allDates.filter(d=>weekNumber(d)===w);
+          if(!wkDays.length) return {w,score:0,active:false};
+          const wo=wkDays.filter(d=>logs[d]?.workout).length;
+          const st=wkDays.filter(d=>(logs[d]?.steps||0)>=STEPS_TARGET).length;
+          const wa=wkDays.filter(d=>(logs[d]?.water||0)>=WATER_TARGET).length;
+          const su=wkDays.filter(d=>logs[d]?.prenatal&&logs[d]?.magnesium).length;
+          const score = Math.round(((wo/Math.min(3,wkDays.length))+(st/wkDays.length)+(wa/wkDays.length)+(su/wkDays.length))/4*10);
+          return {w,score,active:true,wo,st,wa,su,days:wkDays.length};
+        });
+
+        // Habit grid for last 14 days
+        const last14 = sortedDates.slice(-14);
+        const habits = [
+          {label:"🏋️",key:"workout",fn:d=>logs[d]?.workout},
+          {label:"💊",key:"supps",fn:d=>logs[d]?.prenatal&&logs[d]?.magnesium},
+          {label:"🚶",key:"steps",fn:d=>(logs[d]?.steps||0)>=STEPS_TARGET},
+          {label:"💧",key:"water",fn:d=>(logs[d]?.water||0)>=WATER_TARGET},
+          {label:"🌿",key:"husk",fn:d=>logs[d]?.foods?.some(f=>f.name?.toLowerCase().includes("psyllium"))},
+        ];
+
+        // Motivational message
+        const msgs = pctToGoal>=80?"You're almost there! 🎯 The finish line is in sight."
+          :pctToGoal>=50?"Halfway and building momentum. Keep going! 💪"
+          :pctToGoal>=25?"Strong start — the habits are taking shape. 🌿"
+          :"Every great journey starts exactly like this. Day by day. 🌱";
+
+        return (
         <div style={S.section}>
-          <div style={S.card}>
-            <div style={S.label}>8-Week Journey</div>
+
+          {/* Hero goal card */}
+          <div style={{...S.card,background:"linear-gradient(135deg,rgba(159,216,168,0.12),rgba(52,211,153,0.06))",border:"1px solid rgba(134,239,172,0.25)",marginBottom:12}}>
+            <div style={{fontSize:11,color:"rgba(134,239,172,0.7)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>8-Week Goal</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:14}}>
+              <div>
+                <div style={{fontSize:36,fontWeight:900,color:"#86efac",lineHeight:1}}>{pctToGoal}%</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>of 5kg goal reached</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>Week {weekNum} of 8</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{totalDays} days logged</div>
+              </div>
+            </div>
+            <div style={{height:10,background:"rgba(255,255,255,0.07)",borderRadius:5,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:`${pctToGoal}%`,background:"linear-gradient(90deg,#86efac,#34d399)",borderRadius:5,transition:"width 0.8s ease"}}/>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              {[["Start",`${START_WEIGHT}kg`,"#f97316"],["Current",`${latestWeight}kg`,"#f0ede8"],["Goal",`${GOAL_WEIGHT}kg`,"#86efac"]].map(([l,v,c])=>(
-                <div key={l} style={{background:"rgba(255,255,255,0.03)",borderRadius:10,padding:12,textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:900,color:c}}>{v}</div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,0.38)",marginTop:4}}>{l}</div>
+              {[["Start","72kg","#f97316"],["Now",`${latestWeight}kg`,"#f0ede8"],["Goal","67kg","#86efac"]].map(([l,v,c])=>(
+                <div key={l} style={{background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:2}}>{l}</div>
                 </div>
               ))}
             </div>
-            <div style={{marginTop:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"rgba(255,255,255,0.38)",marginBottom:6}}>
-                <span>Progress to goal</span><span style={{color:"#86efac"}}>{Math.round((lost/5)*100)}%</span>
+            <div style={{marginTop:12,fontSize:13,color:"rgba(255,255,255,0.6)",fontStyle:"italic",textAlign:"center"}}>{msgs}</div>
+          </div>
+
+          {/* Streak cards */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+            {[
+              {label:"Step streak",val:`${curStepStreak}d`,sub:"days in a row",color:"#86efac",icon:"🚶"},
+              {label:"Supplement streak",val:`${curSuppStreak}d`,sub:"days in a row",color:"#c084fc",icon:"💊"},
+              {label:"Days logged",val:totalDays,sub:"total days tracked",color:"#38bdf8",icon:"📋"},
+            ].map(t=>(
+              <div key={t.label} style={{...S.card,textAlign:"center",padding:"14px 8px",marginBottom:0}}>
+                <div style={{fontSize:20,marginBottom:4}}>{t.icon}</div>
+                <div style={{fontSize:24,fontWeight:900,color:t.color}}>{t.val}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:3}}>{t.sub}</div>
               </div>
-              <div style={{height:10,background:"rgba(255,255,255,0.07)",borderRadius:5,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.min(100,(lost/5)*100)}%`,background:"linear-gradient(90deg,#86efac,#34d399)",borderRadius:5,transition:"width 0.5s"}}/>
+            ))}
+          </div>
+
+          {/* Weekly arc */}
+          <div style={S.card}>
+            <div style={S.label}>Weekly Progress</div>
+            <div style={{display:"flex",gap:6,alignItems:"flex-end",height:90,marginBottom:8}}>
+              {weekScores.map(({w,score,active,wo,st,wa,su,days})=>{
+                const isCurrent=weekNumber(todayStr())===w;
+                const h=active?Math.max(12,(score/10)*80):12;
+                return (
+                  <div key={w} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <div style={{width:"100%",height:h,borderRadius:4,background:isCurrent?"#86efac":active?"rgba(134,239,172,0.4)":"rgba(255,255,255,0.06)",transition:"height 0.5s",position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      {active&&score>0&&<span style={{fontSize:9,fontWeight:700,color:isCurrent?"#0c0c10":"rgba(255,255,255,0.7)"}}>{score}</span>}
+                    </div>
+                    <span style={{fontSize:10,color:isCurrent?"#86efac":"rgba(255,255,255,0.35)"}}>W{w}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",textAlign:"center"}}>bar height = consistency score (0-10) · green = current week</div>
+          </div>
+
+          {/* Habit grid */}
+          <div style={S.card}>
+            <div style={S.label}>Last 14 Days — Habit Grid</div>
+            <div style={{overflowX:"auto"}}>
+              <div style={{display:"grid",gridTemplateColumns:"28px repeat(14,1fr)",gap:5,minWidth:320,alignItems:"center"}}>
+                <div/>
+                {last14.map(d=>(
+                  <div key={d} style={{textAlign:"center",fontSize:9,color:"rgba(255,255,255,0.3)"}}>
+                    {new Date(d+"T12:00:00").toLocaleDateString("en-US",{day:"numeric"})}
+                  </div>
+                ))}
+                {habits.map(h=>(
+                  <React.Fragment key={h.key}>
+                    <div style={{fontSize:13,textAlign:"center"}}>{h.label}</div>
+                    {last14.map(d=>(
+                      <div key={d} style={{width:"100%",paddingBottom:"100%",position:"relative"}}>
+                        <div style={{position:"absolute",inset:1,borderRadius:3,background:h.fn(d)?"#86efac":"rgba(255,255,255,0.05)",border:`1px solid ${h.fn(d)?"rgba(134,239,172,0.4)":"rgba(255,255,255,0.06)"}`}}/>
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
               </div>
             </div>
+            <div style={{display:"flex",gap:12,marginTop:12,fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+              <span><span style={{color:"#86efac"}}>■</span> done</span>
+              <span><span style={{color:"rgba(255,255,255,0.1)"}}>■</span> missed</span>
+            </div>
           </div>
+
+          {/* Weekly detail */}
           <div style={S.card}>
-            <div style={S.label}>Weekly Streaks</div>
-            {Array.from({length:8},(_,i)=>i+1).map(w=>{
-              const wkDays=allDates.filter(d=>weekNumber(d)===w);
-              const workouts=wkDays.filter(d=>logs[d]?.workout).length;
-              const supps=wkDays.filter(d=>logs[d]?.prenatal&&logs[d]?.magnesium).length;
-              const steps=wkDays.filter(d=>(logs[d]?.steps||0)>=STEPS_TARGET).length;
-              const current=weekNumber(todayStr())===w;
+            <div style={S.label}>Week by Week</div>
+            {weekScores.filter(w=>w.active).map(({w,score,wo,st,wa,su,days})=>{
+              const isCurrent=weekNumber(todayStr())===w;
               return (
-                <div key={w} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:w>weekNumber(todayStr())?0.3:1}}>
-                  <div style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${current?"#86efac":"rgba(255,255,255,0.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:current?"#86efac":"rgba(255,255,255,0.38)",flexShrink:0}}>W{w}</div>
-                  <div style={{flex:1,fontSize:11,color:"rgba(255,255,255,0.45)"}}>
-                    <span style={{marginRight:12}}>🏋️ {workouts}/3</span>
-                    <span style={{marginRight:12}}>💊 {supps}/{wkDays.length||0}</span>
-                    <span>🚶 {steps}/{wkDays.length||0}</span>
+                <div key={w} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",opacity:isCurrent?1:0.7}}>
+                  <div style={{width:38,height:38,borderRadius:"50%",background:isCurrent?"rgba(134,239,172,0.15)":"rgba(255,255,255,0.04)",border:`2px solid ${isCurrent?"#86efac":"rgba(255,255,255,0.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:isCurrent?"#86efac":"rgba(255,255,255,0.5)",flexShrink:0}}>W{w}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",gap:10,fontSize:11,color:"rgba(255,255,255,0.5)",flexWrap:"wrap"}}>
+                      <span>🏋️ {wo}/{Math.min(3,days)}</span>
+                      <span>🚶 {st}/{days}</span>
+                      <span>💧 {wa}/{days}</span>
+                      <span>💊 {su}/{days}</span>
+                    </div>
                   </div>
-                  {workouts>=3 && <span style={{fontSize:16}}>🔥</span>}
+                  <div style={{fontSize:18,fontWeight:800,color:score>=8?"#86efac":score>=6?"#fbbf24":"#f87171"}}>{score}<span style={{fontSize:11,fontWeight:400,color:"rgba(255,255,255,0.3)"}}>/10</span></div>
+                  {wo>=3&&<span>🔥</span>}
                 </div>
               );
             })}
           </div>
+
+          {/* Weight history */}
           <div style={S.card}>
             <div style={S.label}>Weight History</div>
             {allDates.filter(d=>logs[d]?.weight).length===0
@@ -486,38 +604,28 @@ function App() {
             }
           </div>
 
+          {/* Import */}
           <div style={S.card}>
-            <div style={S.label}>Import Historic Data</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginBottom:10}}>Paste your data JSON below and tap Import 👇</div>
-            <textarea
-              id="importBox"
-              rows={6}
-              placeholder='Paste JSON data here...'
-              style={{...S.input,resize:"vertical",fontSize:12,marginBottom:8}}
-            />
+            <div style={S.label}>Import Data</div>
+            <textarea id="importBox" rows={4} placeholder="Paste JSON data here..." style={{...S.input,resize:"vertical",fontSize:12,marginBottom:8}}/>
             <div style={{display:"flex",gap:8}}>
               <button style={{...S.btn("green"),flex:1}} onClick={()=>{
-                try {
-                  const raw = document.getElementById("importBox").value.trim();
-                  const parsed = JSON.parse(raw);
+                try{
+                  const raw=document.getElementById("importBox").value.trim();
+                  const parsed=JSON.parse(raw);
                   setLogs(parsed);
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                  localStorage.setItem(STORAGE_KEY,JSON.stringify(parsed));
                   document.getElementById("importBox").value="";
-                  alert("✅ Data imported! Tap ☁️ Save to sync to Sheets.");
-                } catch(e) {
-                  alert("❌ Invalid data. Make sure you copied the full JSON.");
-                }
-              }}>Import Data</button>
-              <button style={{...S.btn("red"),flex:1}} onClick={()=>{
-                if(confirm("Clear ALL data? This cannot be undone.")) {
-                  setLogs({});
-                  localStorage.removeItem(STORAGE_KEY);
-                }
-              }}>Clear All</button>
+                  alert("✅ Data imported!");
+                }catch(e){alert("❌ Invalid JSON. Copy the full block from Claude.");}
+              }}>Import</button>
+              <button style={{...S.btn("red"),flex:1}} onClick={()=>{if(confirm("Clear ALL data?")){{setLogs({});localStorage.removeItem(STORAGE_KEY);}}}}>Clear All</button>
             </div>
           </div>
+
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
